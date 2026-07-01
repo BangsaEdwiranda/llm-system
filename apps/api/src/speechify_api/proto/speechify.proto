@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package speechify;
+
+service SpeechifyService {
+  rpc Login (LoginRequest) returns (TokenResponse);
+  rpc CreateDocument (CreateDocumentRequest) returns (DocumentDetail);
+  rpc ListDocuments (ListDocumentsRequest) returns (ListDocumentsResponse);
+  rpc GetDocument (GetDocumentRequest) returns (DocumentDetail);
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message TokenResponse {
+  string access_token = 1;
+}
+
+message CreateDocumentRequest {
+  string access_token = 1;
+  string title = 2;
+  string text = 3;
+}
+
+message DocumentDetail {
+  int32 id = 1;
+  int32 owner_id = 2;
+  string title = 3;
+  string text = 4;
+}
+
+message ListDocumentsRequest {
+  string access_token = 1;
+}
+
+message DocumentSummary {
+  int32 id = 1;
+  string title = 2;
+  string status = 3;
+  string audio_url = 4;
+}
+
+message ListDocumentsResponse {
+  repeated DocumentSummary documents = 1;
+}
+
+message GetDocumentRequest {
+  string access_token = 1;
+  int32 document_id = 2;
+}

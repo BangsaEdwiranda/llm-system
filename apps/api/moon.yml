@@ -1,0 +1,23 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+type: "application"
+language: "python"
+
+tasks:
+  install:
+    command: "pip install -e .[dev]"
+    local: true
+  gen-proto:
+    command: "python -m grpc_tools.protoc -I src/speechify_api/proto --python_out=src/speechify_api/proto --grpc_python_out=src/speechify_api/proto src/speechify_api/proto/speechify.proto"
+    local: true
+  seed:
+    command: "python -m speechify_api.seed"
+    local: true
+  test:
+    command: "pytest"
+    inputs:
+      - "src/**/*"
+      - "tests/**/*"
+  dev:
+    command: "uvicorn speechify_api.http_app:app --reload"
+    local: true

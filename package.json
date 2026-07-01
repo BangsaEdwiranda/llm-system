@@ -1,0 +1,6 @@
+{
+  "name": "llm-refactor-speechify",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@9.0.0"
+}
