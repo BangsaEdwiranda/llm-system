@@ -21,3 +21,23 @@ def test_create_conversion_marks_completed_on_success(db_session, monkeypatch):
 
     assert conversion.status == "completed"
     assert conversion.audio_url is not None
+
+
+def test_create_conversion_marks_failed_on_tts_error(db_session, monkeypatch):
+    # Force the simulated TTS engine down the failure path.
+    monkeypatch.setattr(conversion_service.random, "random", lambda: 0.0)
+
+    user = User(email="erin@example.com", hashed_password="unused-in-this-test")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    document = Document(owner_id=user.id, title="Erin's doc", text="a short piece of text")
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+
+    conversion = conversion_service.create_conversion(db_session, document.id, document.text)
+
+    assert conversion.status == "failed"
+    assert conversion.audio_url is None

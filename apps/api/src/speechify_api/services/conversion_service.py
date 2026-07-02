@@ -37,7 +37,14 @@ def create_conversion(session: Session, document_id: int, text: str) -> Conversi
     session.refresh(conversion)
 
     job_id = str(conversion.id)
-    audio_url = _run_tts_engine(job_id, text)
+    try:
+        audio_url = _run_tts_engine(job_id, text)
+    except RuntimeError:
+        # See FINDINGS.md: "Unhandled TTS failure leaves conversion stuck at processing".
+        conversion.status = "failed"
+        session.commit()
+        session.refresh(conversion)
+        return conversion
 
     conversion.status = "completed"
     conversion.audio_url = audio_url

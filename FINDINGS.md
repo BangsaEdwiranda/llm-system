@@ -63,3 +63,28 @@
   the loop around a hand-rolled correlated subquery, which would have to reimplement
   the same tie-break logic and had no existing test coverage to catch a mistake in it
   (the two pre-existing tests only ever exercised documents with zero conversions).
+
+## Unhandled TTS failure leaves conversion stuck at "processing"
+
+- **Problem**: `create_conversion` commits a `Conversion` row as `"processing"`, then
+  calls `_run_tts_engine`, which raises `RuntimeError` ~20% of the time to simulate an
+  engine timeout/error. Nothing caught that exception, so it propagated up through
+  `POST /documents/{id}/convert` as an unhandled 500, and the row was left at
+  `"processing"` forever with no way for the client to know the job failed.
+- **Severity**: Medium — no data exposure, but every failed conversion is a stuck row
+  a client can't distinguish from "still working," and the endpoint returns an opaque
+  500 instead of a usable response.
+- **Trigger**: Call `POST /documents/{id}/convert` when `_run_tts_engine`'s random
+  failure branch fires (`random.random() < 0.2`).
+- **Fix**: Wrapped the `_run_tts_engine` call in `try/except RuntimeError`; on failure,
+  sets `conversion.status = "failed"`, commits, and returns the conversion instead of
+  letting the exception propagate. Added a regression test
+  (`test_create_conversion_marks_failed_on_tts_error`) that forces the failure branch
+  via `monkeypatch` on `random.random`, mirroring the existing success-path test.
+- **Why**: Caught `RuntimeError` specifically rather than a bare `Exception` —
+  `_run_tts_engine`'s body has no other code path that can raise, so a broader catch
+  would suppress errors this code can't actually produce today. Returning the `"failed"`
+  conversion (rather than re-raising) matches the existing caller contract: the HTTP
+  route in `http_app.py` already builds `ConversionResponse` straight from whatever
+  `create_conversion` returns and treats `status` as a free-form field, so `"failed"`
+  slots in as a normal response rather than requiring a new error-handling path.
