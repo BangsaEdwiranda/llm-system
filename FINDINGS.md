@@ -36,3 +36,30 @@
   other consumers (confirmed via repo-wide search — only these two files mention the
   variable), so fixing the template is the lower-risk, one-line change versus renaming
   the code's env var.
+
+## N+1 queries in document listing
+
+- **Problem**: `list_documents_with_status` fetches all of a user's documents in one
+  query, then accesses `document.conversions` inside the loop to find each document's
+  latest conversion — each access is a separate lazy-loaded query, so listing N
+  documents issues `1 + N` queries.
+- **Severity**: Medium — no data exposure, but query count scales linearly with a
+  user's document count on every `GET /documents` call and the equivalent gRPC
+  `ListDocuments` RPC, and compounds with request concurrency.
+- **Trigger**: Call `GET /documents` (or the gRPC `ListDocuments` RPC) for a user with
+  multiple documents; observe one SELECT per document in addition to the initial list
+  query.
+- **Fix**: Added `.options(selectinload(Document.conversions))` to the query in
+  `list_documents_with_status`, batching all conversions for the returned documents
+  into a single extra query (`1 + N` → `2` total, regardless of document count).
+  Removed the now-stale inline comment describing the N+1. Added a regression test
+  (`test_list_documents_uses_most_recent_conversion`) that gives one document two
+  `Conversion` rows with different `created_at` values and asserts the endpoint
+  returns the most recent one's status/audio_url.
+- **Why**: `selectinload` preserves the existing relationship ordering
+  (`Conversion.created_at.desc()` on `Document.conversions`), so `conversions[0]`
+  still means "latest attempt" with no change to the picking logic itself — only how
+  the rows are fetched. That keeps the fix mechanical and low-risk versus rewriting
+  the loop around a hand-rolled correlated subquery, which would have to reimplement
+  the same tie-break logic and had no existing test coverage to catch a mistake in it
+  (the two pre-existing tests only ever exercised documents with zero conversions).

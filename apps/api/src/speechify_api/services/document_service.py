@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..models import Document
 
@@ -16,13 +16,12 @@ def list_documents_with_status(session: Session, user_id: int) -> list[dict]:
         session.query(Document)
         .filter(Document.owner_id == user_id)
         .order_by(Document.created_at.desc())
+        .options(selectinload(Document.conversions))
         .all()
     )
 
     results = []
     for document in documents:
-        # Each access to `document.conversions` below is a separate lazy-loaded
-        # query, so this loop issues one extra SELECT per document.
         latest = document.conversions[0] if document.conversions else None
         results.append(
             {
