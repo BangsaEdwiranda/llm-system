@@ -6,11 +6,11 @@ language: "typescript"
 
 tasks:
   dev:
-    command: "vite"
+    command: "pnpm exec vite"
     preset: "server"
   build:
-    command: "vite build"
+    command: "pnpm exec vite build"
     outputs:
       - "dist"
   typecheck:
-    command: "tsc --noEmit"
+    command: "pnpm exec tsc --noEmit"
