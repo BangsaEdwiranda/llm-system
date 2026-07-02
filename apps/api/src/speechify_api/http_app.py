@@ -99,7 +99,7 @@ def read_document(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> DocumentDetail:
-    document = document_service.get_document(session, document_id)
+    document = document_service.get_document(session, document_id, current_user.id)
     if document is None:
         raise HTTPException(status_code=404, detail="Document not found")
     return DocumentDetail(
@@ -117,7 +117,7 @@ def convert_document(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> ConversionResponse:
-    document = document_service.get_document(session, document_id)
+    document = document_service.get_document(session, document_id, current_user.id)
     if document is None:
         raise HTTPException(status_code=404, detail="Document not found")
     conversion = conversion_service.create_conversion(session, document.id, document.text)
@@ -135,7 +135,7 @@ def download_audio(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> ConversionResponse:
-    document = document_service.get_document(session, document_id)
+    document = document_service.get_document(session, document_id, current_user.id)
     if document is None or not document.conversions:
         raise HTTPException(status_code=404, detail="No conversion available")
     latest = document.conversions[0]

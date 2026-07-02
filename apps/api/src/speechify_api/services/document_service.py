@@ -36,5 +36,9 @@ def list_documents_with_status(session: Session, user_id: int) -> list[dict]:
     return results
 
 
-def get_document(session: Session, document_id: int) -> Document | None:
-    return session.get(Document, document_id)
+def get_document(session: Session, document_id: int, owner_id: int) -> Document | None:
+    return (
+        session.query(Document)
+        .filter(Document.id == document_id, Document.owner_id == owner_id)
+        .first()
+    )

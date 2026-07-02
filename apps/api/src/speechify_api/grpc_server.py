@@ -61,8 +61,8 @@ class SpeechifyServicer(speechify_pb2_grpc.SpeechifyServiceServicer):
     def GetDocument(self, request, context):
         session = SessionLocal()
         try:
-            _current_user(session, request.access_token)
-            document = document_service.get_document(session, request.document_id)
+            user = _current_user(session, request.access_token)
+            document = document_service.get_document(session, request.document_id, user.id)
             if document is None:
                 context.abort(grpc.StatusCode.NOT_FOUND, "document not found")
             return speechify_pb2.DocumentDetail(

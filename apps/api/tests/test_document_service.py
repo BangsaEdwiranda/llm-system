@@ -22,3 +22,17 @@ def test_list_documents_only_returns_carols_own_document(db_session):
     docs = document_service.list_documents_with_status(db_session, user.id)
     assert len(docs) == 1
     assert docs[0]["title"] == "Carol's first doc"
+
+
+def test_get_document_denies_non_owner(db_session):
+    owner = User(email="frank@example.com", hashed_password=auth.hash_password("frank-password"))
+    other = User(email="grace@example.com", hashed_password=auth.hash_password("grace-password"))
+    db_session.add_all([owner, other])
+    db_session.commit()
+    db_session.refresh(owner)
+    db_session.refresh(other)
+
+    document = document_service.create_document(db_session, owner.id, "Frank's doc", "secret text")
+
+    assert document_service.get_document(db_session, document.id, owner.id) is not None
+    assert document_service.get_document(db_session, document.id, other.id) is None
