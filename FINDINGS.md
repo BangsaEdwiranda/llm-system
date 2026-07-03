@@ -66,6 +66,53 @@
 
   **Update**: there is a follow up commit to fix a regression duplicate data for unit tests causing by the fix above.
 
+## Missing indexes on owner_id/created_at
+
+- **Problem**: `list_documents_with_status` filters `Document` rows by `owner_id`
+  and sorts by `created_at` on every call (`GET /documents` and the gRPC
+  `ListDocuments` RPC), but neither column was indexed — every call does a full
+  table scan of `documents` plus an in-memory sort.
+- **Severity**: Medium — no data exposure, but this is the query hit on every
+  page load, and its cost grows linearly with total document count across *all*
+  users (not just the caller's), since there's no index to prune the scan.
+- **Trigger**: Call `GET /documents` once `documents` has enough rows that a full
+  scan + sort becomes measurable (thousands+ rows).
+- **Fix**: Added a composite index `(owner_id, created_at)` via
+  `__table_args__ = (Index("ix_documents_owner_id_created_at", "owner_id", "created_at"),)`
+  on `Document`.
+- **Why**: The issue as originally scoped suggested two independent
+  single-column indexes (`index=True` on each column). A composite index on
+  `(owner_id, created_at)` is strictly better for this specific access pattern —
+  it lets the query planner satisfy both the `WHERE owner_id = ?` filter and the
+  `ORDER BY created_at DESC` in a single index traversal, with no separate sort
+  step. Two standalone indexes would force the planner to use one and still sort
+  the matching rows in memory. `get_document`'s `owner_id` filter doesn't need
+  its own index — it narrows a row already located by primary key (`id`), so an
+  index there wouldn't speed anything up.
+- **Migration/scale notes**: This repo has no migration tool — `init_db()` calls
+  `Base.metadata.create_all`, which only creates tables/indexes that don't exist
+  yet. Editing the model is enough for fresh databases (including the test suite,
+  which builds an in-memory SQLite DB from scratch on every run) but does
+  **nothing** for an already-deployed database; the index there must be created
+  out-of-band with `CREATE INDEX ix_documents_owner_id_created_at ON documents
+  (owner_id, created_at);`.
+  - **SQLite (current backend)**: `CREATE INDEX` takes a write lock on the whole
+    database file for the build's duration — there's no online/concurrent index
+    build. On a massive table this is measurable write downtime; run it in a
+    maintenance window, sized from a dry run against a staging copy of the table.
+    If growth is expected to reach that point, it's also a signal to move off
+    SQLite (single-writer, file-based) rather than rely on maintenance windows
+    indefinitely.
+  - **Postgres (likely eventual target at scale)**: use `CREATE INDEX
+    CONCURRENTLY`, which avoids locking out reads/writes at the cost of a longer
+    build; it must run outside a transaction block and can fail partway,
+    leaving an invalid index that needs `DROP INDEX` + retry — so this needs a
+    real migration tool (e.g. Alembic), not a bare SQL statement, before this
+    fix is safe to roll out against a large production table.
+  - Ongoing cost is a small per-write B-tree update on every `documents`
+    insert/update — negligible until write throughput itself is "massive," but
+    worth noting as a tradeoff rather than a free win.
+
 ## Unhandled TTS failure leaves conversion stuck at "processing"
 
 - **Problem**: `create_conversion` commits a `Conversion` row as `"processing"`, then

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -25,13 +25,15 @@ class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # NOTE: documents are listed by owner_id and ordered by created_at on every
-    # request (see document_service.list_documents_with_status) but neither
-    # column is indexed.
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     title: Mapped[str] = mapped_column(String(200))
     text: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(default=_utcnow)
+
+    # Composite index matches list_documents_with_status's filter(owner_id) +
+    # order_by(created_at) exactly; see FINDINGS.md for migration notes on
+    # existing (non-fresh) databases.
+    __table_args__ = (Index("ix_documents_owner_id_created_at", "owner_id", "created_at"),)
 
     owner: Mapped["User"] = relationship(back_populates="documents")
     conversions: Mapped[list["Conversion"]] = relationship(
