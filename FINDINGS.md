@@ -137,3 +137,25 @@
   route in `http_app.py` already builds `ConversionResponse` straight from whatever
   `create_conversion` returns and treats `status` as a free-form field, so `"failed"`
   slots in as a normal response rather than requiring a new error-handling path.
+
+## Order-dependent test in test_document_service.py
+
+- **Problem**: `test_list_documents_only_returns_carols_own_document` never created its
+  own test data — it queried for `carol@example.com` assuming
+  `test_create_document_for_carol` (declared earlier in the same file) had already
+  inserted her into the shared, session-scoped `db_session` fixture.
+- **Severity**: Low — no production impact, but it's a latent CI flake: the test fails
+  if run in isolation (`pytest -k test_list_documents_only_returns_carols_own_document`),
+  under a test-randomization plugin, or if a new test is ever inserted between the two.
+- **Trigger**: Run the test alone, or reorder/insert tests ahead of it in the file.
+- **Fix**: The test now creates its own user and document instead of depending on the
+  previous test's side effect. Used a distinct email (`carol2@example.com`) rather than
+  reusing `carol@example.com`, since `db_session` is still shared session-wide and
+  `User.email` is unique — reusing the literal would collide with the row
+  `test_create_document_for_carol` inserts whenever both tests run in the same session.
+- **Why**: Mirrors the self-contained pattern already used by the other tests in the same
+  file (`test_list_documents_uses_most_recent_conversion`, `test_get_document_denies_non_owner`),
+  and fixes the coupling without touching the shared `db_session`/`client` fixtures in
+  `conftest.py`, which `test_conversion_service.py` also depends on — rescoping those
+  fixtures would have been a larger, riskier change for a test-only, low-severity bug.
+- **Scale**: For better scaffolding, we can have fixture per function instead of per session, since the complexity will grow over the time when unit tests also grow. But for this assessment, since i do not want to rewrite the neighbourhood and keep the fix clean and surgical, so i picked this solution.
