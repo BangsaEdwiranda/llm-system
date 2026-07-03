@@ -64,6 +64,8 @@
   the same tie-break logic and had no existing test coverage to catch a mistake in it
   (the two pre-existing tests only ever exercised documents with zero conversions).
 
+  **Update**: there is a follow up commit to fix a regression duplicate data for unit tests causing by the fix above.
+
 ## Unhandled TTS failure leaves conversion stuck at "processing"
 
 - **Problem**: `create_conversion` commits a `Conversion` row as `"processing"`, then

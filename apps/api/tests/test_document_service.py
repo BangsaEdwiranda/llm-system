@@ -27,12 +27,12 @@ def test_list_documents_only_returns_carols_own_document(db_session):
 
 
 def test_list_documents_uses_most_recent_conversion(db_session):
-    user = User(email="dave@example.com", hashed_password=auth.hash_password("dave-password"))
+    user = User(email="heidi@example.com", hashed_password=auth.hash_password("heidi-password"))
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
 
-    document = document_service.create_document(db_session, user.id, "Dave's doc", "hello world")
+    document = document_service.create_document(db_session, user.id, "Heidi's doc", "hello world")
 
     now = datetime.now(timezone.utc)
     db_session.add_all(
